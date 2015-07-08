@@ -3,6 +3,7 @@
 #include <string>
 #include <fstream>
 #include <algorithm>
+#include <cstdio>
 
 #include "tclap/CmdLine.h"
 
@@ -142,6 +143,8 @@ using  FileOffset   = std::uint64_t;
 using  FileSize     = std::uint64_t;
 using  BufferSize   = std::uint64_t;
 using  Index        = std::uint64_t;
+using  ChunkLevel   = std::uint64_t; // level 0 are leaves, level 1 are chunks composed of level 0 chunks
+using  ChunkCount   = std::uint64_t; // level 0 are leaves, level 1 are chunks composed of level 0 chunks
 
 // global variables
 
@@ -155,15 +158,29 @@ static RecordOffset KEY_OFFSET  = 0;
 
 struct Chunk {
 public:
-    Chunk(BESort *parent, Index index, FileOffset begin, FileOffset end, RecordCount num_records);
+    Chunk(const std::vector<Chunk*>& children);
+    Chunk(BESort *besort, Chunk* parent, Index index, FileOffset begin, FileOffset end, RecordCount num_records, ChunkLevel level);
+    
+    /*!
+     * Returns true if this non-leaf chunk is ready to be merged
+     * Updates num sorted children and when it reaches number of children
+     * returns true
+     */
+    bool aChildWasSorted();
+    
     std::string filename() const;
 public:
-    BESort*     parent { nullptr };
+    BESort*     besort { nullptr };
+    Chunk*      parent { nullptr };
     Index       index { 0 };
     
+    ChunkLevel  level { 0 };
     FileOffset  begin { 0 };
     FileOffset  end   { 0 };
-    RecordCount num_records { 0 };
+    RecordCount num_records         { 0 };
+
+    std::vector<Chunk*> children;
+    ChunkCount          num_sorted_children { 0 };
 };
 
 //------------------------------------------------------------------------------
@@ -222,6 +239,9 @@ struct Record {
     
     Record(const Record& other);
     Record& operator=(const Record &other);
+
+    Record(Record&& other);
+    Record& operator=(Record &&other);
     
     uint64_t key() const; // if KEY_SIZE <= 8 bytes key() works
     
@@ -253,7 +273,14 @@ public:
     inline RecordIterator& operator++();  // PREFIX
     inline RecordIterator& operator--();  // PREFIX
     inline RecordIterator operator++(int);  // POSTFIX
+    
+    auto operator-(const RecordIterator& other) const -> difference_type;
 
+    bool operator<(const RecordIterator& other) const;
+    bool operator>=(const RecordIterator& other) const;
+    bool operator>(const RecordIterator& other) const;
+    bool operator<=(const RecordIterator& other) const;   
+    
     RecordIterator operator--(int);  // POSTFIX
     RecordIterator operator+(const difference_type& n) const;
     RecordIterator& operator+=(const difference_type& n);
@@ -262,6 +289,7 @@ public:
     RecordIterator& operator-=(const difference_type& n);
 
     bool operator==(const RecordIterator& other) const;
+    bool operator!=(const RecordIterator& other) const;
 
     reference operator*() const;
     pointer operator->() const;
@@ -322,12 +350,10 @@ public:
 struct MultiWayMerge {
 public:
     MultiWayMerge() = default;
-    MultiWayMerge(BESort *parent, Index index, const std::vector<Chunk*> &chunks, RecordCount buffer_record_capacity);
+    MultiWayMerge(Chunk *chunk, RecordCount buffer_record_capacity);
     void run();
-    std::string filename() const;
 public:
-    BESort *parent { nullptr };
-    Index  index { 0 };
+    Chunk  *chunk;
     std::vector<std::unique_ptr<Queue>> queues;
     RecordCount buffer_record_capacity;
 };
@@ -375,22 +401,53 @@ public:
 // Chunk Impl.
 //------------------------------------------------------------------------------
 
-Chunk::Chunk(BESort *parent,
+Chunk::Chunk(BESort* besort,
+             Chunk*  parent,
              Index   index,
              FileOffset begin,
              FileOffset end,
-             RecordCount num_records):
+             RecordCount num_records,
+             ChunkLevel level):
+besort(besort),
 parent(parent),
 index(index),
 begin(begin),
 end(end),
-num_records(num_records)
+num_records(num_records),
+level(level)
 {}
 
+Chunk::Chunk(const std::vector<Chunk*>& children):
+    children(children)
+{
+    if (children.size() < 1)
+        throw std::runtime_error("Higher level chunk should have at least two children");
+    
+    besort = children[0]->besort;
+    level  = children[0]->level + 1;
+    index  = children[0]->index;
+    begin  = children[0]->begin;
+    end    = children[0]->end;
+
+    for (auto c: children) {
+        index        = std::min(index, c->index);
+        begin        = std::min(begin, c->begin);
+        end          = std::max(end,   c->end);
+        num_records += c->num_records;
+        c->parent = this;
+    }
+    
+    num_sorted_children = 0;
+}
+
+bool Chunk::aChildWasSorted() {
+    ++num_sorted_children;
+    return num_sorted_children == children.size();
+}
 
 std::string Chunk::filename() const {
     std::stringstream ss;
-    ss << "/tmp/__besort" << index;
+    ss << "/tmp/__besort_chunk_l" << level << "_i" << index << ".txt";
     return ss.str();
 }
 
@@ -398,6 +455,20 @@ std::string Chunk::filename() const {
 //------------------------------------------------------------------------------
 // Record Impl.
 //------------------------------------------------------------------------------
+
+namespace std {
+    template<>
+    void swap(Record& ra, Record& rb)
+    {
+        auto pa = (char*) &ra;
+        auto pb = (char*) &rb;
+        for (int i=0;i<RECORD_SIZE;++i) {
+            std::swap(*pa, *pb);
+            ++pa;
+            ++pb;
+        }
+    }
+}
 
 Record::Record(const Record& other) {
     auto pa = (char*) this;
@@ -407,6 +478,21 @@ Record::Record(const Record& other) {
 }
 
 Record& Record::operator=(const Record &other) {
+    auto pa = (char*) this;
+    auto pb = (const char*) &other;
+    auto eb = pb + RECORD_SIZE;
+    std::copy(pb,eb,pa);
+    return *this;
+}
+
+Record::Record(Record&& other) {
+    auto pa = (char*) this;
+    auto pb = (const char*) &other;
+    auto eb = pb + RECORD_SIZE;
+    std::copy(pb,eb,pa);
+}
+
+Record& Record::operator=(Record &&other) {
     auto pa = (char*) this;
     auto pb = (const char*) &other;
     auto eb = pb + RECORD_SIZE;
@@ -517,13 +603,38 @@ RecordIterator& RecordIterator::operator+=(const difference_type& n)
 RecordIterator RecordIterator::operator-(const difference_type& n) const
 { return RecordIterator(pointer(rp_add(ptr,-n))); }
 
+auto RecordIterator::operator-(const RecordIterator& other) const -> difference_type
+{ return ((difference_type)ptr - (difference_type)other.ptr)/RECORD_SIZE; }
+
+
 RecordIterator& RecordIterator::operator-=(const difference_type& n) {
     ptr = rp_add(ptr,-n); return *this;
 }
 
 bool RecordIterator::operator==(const RecordIterator& other) const {
-    return ptr == other.ptr;;
+    return ptr == other.ptr;
 }
+
+bool RecordIterator::operator<(const RecordIterator& other) const {
+    return ptr < other.ptr;
+}
+
+bool RecordIterator::operator>(const RecordIterator& other) const {
+    return ptr > other.ptr;
+}
+
+bool RecordIterator::operator<=(const RecordIterator& other) const {
+    return ptr <= other.ptr;
+}
+
+bool RecordIterator::operator>=(const RecordIterator& other) const {
+    return ptr >= other.ptr;
+}
+
+bool RecordIterator::operator!=(const RecordIterator& other) const {
+    return ptr != other.ptr;
+}
+
 
 auto RecordIterator::operator*() const -> reference
 { return *ptr; }
@@ -551,16 +662,17 @@ void LoadChunkSortAndSave::run() {
     
     
     { // read buffer
-        std::ifstream is(chunk.parent->input.input_filename);
+        std::ifstream is(chunk.besort->input.input_filename);
         is.seekg(chunk.begin);
         is.read(&buffer[0], buffer.size());
     }
     
     
     auto p     = &buffer[0];
-    auto begin = (Record*) p;
-    auto end   = (Record*) (p + buffer.size()) ;
+    RecordIterator begin{(Record*) p};
+    RecordIterator end  {(Record*) (p + buffer.size())};
     
+    // std::cerr << std::distance(begin,end) << std::endl;
     
     // in memory sort
     std::sort(begin, end);
@@ -583,10 +695,10 @@ Queue::Queue(Chunk* chunk, BufferSize buffer_record_capacity):
     remaining = chunk->num_records;
     
     auto batch = remaining > buffer_record_capacity ? buffer_record_capacity : remaining;
-    auto batch_bytes = batch * chunk->parent->input.record_size;
+    auto batch_bytes = batch * chunk->besort->input.record_size;
     buffer.resize(batch);
     
-    next_result.resize(chunk->parent->input.record_size);
+    next_result.resize(chunk->besort->input.record_size);
     
     auto p = &buffer[0];
     is.read(p, batch_bytes);
@@ -629,7 +741,7 @@ Record* Queue::next() {
     // advance
     if (it == it_end && remaining > 0) {
         auto batch = remaining > buffer_record_capacity ? buffer_record_capacity : remaining;
-        auto batch_bytes = batch * chunk->parent->input.record_size;
+        auto batch_bytes = batch * chunk->besort->input.record_size;
         buffer.resize(batch_bytes);
         
         auto p = &buffer[0];
@@ -658,21 +770,13 @@ Record* Queue::next() {
 // MultiWayMerge Impl.
 //------------------------------------------------------------------------------
 
-std::string MultiWayMerge::filename() const {
-    std::stringstream ss;
-    ss << "/tmp/__besort_mway_" << index;
-    return ss.str();
-}
-
-
-MultiWayMerge::MultiWayMerge(BESort *parent, Index index, const std::vector<Chunk*> &chunks, RecordCount buffer_record_capacity):
-parent(parent),
-index(index),
+MultiWayMerge::MultiWayMerge(Chunk* chunk, RecordCount buffer_record_capacity):
+chunk(chunk),
 buffer_record_capacity(buffer_record_capacity)
 {
     
     // initialize queues: one for each chunk
-    for (auto c: chunks) {
+    for (auto c: chunk->children) {
         queues.push_back(std::unique_ptr<Queue>{ new Queue(c, buffer_record_capacity) });
     }
     
@@ -691,10 +795,10 @@ void MultiWayMerge::run() {
         return qa < qb;
     };
 
-    std::ofstream os(filename());
+    std::ofstream os(chunk->filename());
     while (queues.size()) {
         auto record = queues.front()->next();
-        os.write((char*) record, parent->input.record_size);
+        os.write((char*) record, chunk->besort->input.record_size);
         
         // empty
         auto next_front = queues.front()->front();
@@ -789,18 +893,50 @@ BESort::BESort(
     RECORD_SIZE = input.record_size;
     
     
+    
+    //
+    // Create leaf chunks
+    //
+    auto prev_size = chunks.size();
+    
     auto index = 0;
     while (remaining > 0) {
         auto r = (remaining < computed.records_per_chunk) ? remaining : computed.records_per_chunk;
         auto s = (r * input.record_size);
         auto e = offset + s;
-        chunks.push_back(std::unique_ptr<Chunk>(new Chunk(this, index++, offset, e, r)));
+        chunks.push_back(std::unique_ptr<Chunk>(new Chunk(this, nullptr, index++, offset, e, r, 0)));
         offset = e;
         remaining -= r;
     }
     
+    std::cerr << "chunks in level 0: " << chunks.size() << std::endl;
+    
+    //
+    // prepare chunks at other levels
+    //
+    auto level = 1;
+    while (chunks.size() > prev_size + 1) {
+        // at least two chunks need to be merged in the next level
+        auto i = prev_size;
+        auto e = std::min(prev_size + input.multiway_merge,chunks.size());
+
+        prev_size = chunks.size(); // setup fpr next chunk size
+        
+        while (i < e) {
+            std::vector<Chunk*> items(e-i);
+            std::transform(chunks.begin()+i,chunks.begin()+e,items.begin(),[](const std::unique_ptr<Chunk> &it) {
+                return it.get();
+            });
+            chunks.push_back(std::unique_ptr<Chunk>(new Chunk(items)));
+            i = e;
+            e = std::min(i + input.multiway_merge,prev_size);
+        }
+
+        std::cerr << "chunks in level " << level++ << ": " << (chunks.size()-prev_size) << std::endl;
+    }
     
     _run();
+
 }
 
 
@@ -818,44 +954,95 @@ void BESort::_run() {
     thread_pool::ThreadPool pool(input.num_threads);
     
     auto chunks_to_sort = chunks.size();
-    
-    std::mutex sorted_chunks_mutex;
-    std::vector<Chunk*> sorted_chunks;
+    std::mutex update_mutex;
+//    std::vector<Chunk*> sorted_chunks;
     
     auto &besort = *this;
     
-    for (auto &it: chunks) {
-        auto chunk = it.get();
-        auto sort_chunk = [chunk, &besort, &sorted_chunks_mutex, &sorted_chunks, &chunks_to_sort, &pool]() {
+    std::function<void(Chunk*)> sort;
+    sort = [&besort, &sort, &pool, &update_mutex, &chunks_to_sort](Chunk* chunk) {
+        if (chunk->level == 0) {
             LoadChunkSortAndSave task(*chunk);
             task.run();
-            {
-                std::lock_guard<std::mutex> lock(sorted_chunks_mutex);
-                sorted_chunks.push_back(chunk);
-                --chunks_to_sort;
-                if (sorted_chunks.size() == besort.input.multiway_merge || chunks_to_sort == 0) {
-                    // start multi-way sorting with sorted chunks
-                    
-                    
-                    auto merge = [sorted_chunks, &besort]() {
-                        auto queue_records = besort.input.buffer_size/(besort.input.record_size * besort.input.multiway_merge);
-                        if (queue_records == 0)
-                            queue_records = 1;
-                        
-                        MultiWayMerge multiway_merge { &besort, sorted_chunks[0]->index, sorted_chunks, queue_records };
-                        multiway_merge.run();
-                    };
-                    pool.enqueue(merge);
-                    sorted_chunks.clear();
+            std::lock_guard<std::mutex> guard(update_mutex);
+            --chunks_to_sort;
+            std::cerr << "finish sorting: " << chunk->filename() << std::endl;
+
+            auto parent_chunk = chunk->parent;
+            if (parent_chunk) {
+                bool process_parent_chunk = chunk->parent->aChildWasSorted();
+                if (process_parent_chunk) {
+                    pool.enqueue([parent_chunk, &sort]() { sort(parent_chunk); });
                 }
             }
-        };
-        pool.enqueue(sort_chunk);
+        }
+        else {
+            auto queue_records = besort.input.buffer_size/(besort.input.record_size * besort.input.multiway_merge);
+            if (queue_records == 0)
+                queue_records = 1;
+            MultiWayMerge multiway_merge { chunk, queue_records };
+            multiway_merge.run();
+            
+            // delete tmp files of children chunks
+            for (auto c: chunk->children) {
+                std::remove(c->filename().c_str());
+            }
+
+            {
+                std::lock_guard<std::mutex> guard(update_mutex);
+                --chunks_to_sort;
+                std::cerr << "finish sorting: " << chunk->filename() << std::endl;
+
+                auto parent_chunk = chunk->parent;
+                if (parent_chunk) {
+                    bool process_parent_chunk = parent_chunk->aChildWasSorted();
+                    if (process_parent_chunk) {
+                        pool.enqueue([parent_chunk, &sort]{ sort(parent_chunk); });
+                    }
+                }
+            }
+        }
+    };
+    
+    for (auto &it: chunks) {
+        auto chunk = it.get();
+        if (chunk->level == 0) {
+            pool.enqueue([chunk, &sort] { sort(chunk); });
+        }
     }
     
     while (chunks_to_sort > 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds{200});
     }
+    
+    
+    // rename file to output filename
+    if (input.header_offset == 0){
+        std::rename(chunks.back()->filename().c_str(),input.output_filename.c_str());
+    }
+    else {
+        // copy header
+        std::ofstream os(input.output_filename);
+        
+        { // copy header
+            std::ifstream is(input.input_filename);
+            std::size_t remaining = input.header_offset;
+            std::vector<char> buffer(4096);
+            while (remaining > 0) {
+                auto batch = std::min(remaining,buffer.size());
+                is.read(&buffer[0], batch);
+                remaining -= batch;
+                os.write(&buffer[0],batch);
+            }
+        }
+        
+        // copy the other file
+        {
+            std::ifstream  is(chunks.back()->filename());
+            os << is.rdbuf();
+        }
+    }
+    
 }
 
 

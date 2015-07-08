@@ -41,34 +41,34 @@ class Target(object):
             self.__dict__[field_name] += input_list
         return self
 
-    def Includes(self, lst, mode="set"):
+    def Includes(self, lst, mode="append"):
         return self.__append__("includes", mode, lst)
 
-    def Use(self, lst, mode="set"):
+    def Use(self, lst, mode="append"):
         return self.__append__("use", mode, lst)
 
-    def Source(self, lst, mode="set"):
+    def Source(self, lst, mode="append"):
         return self.__append__("source", mode, lst)
 
-    def Libpath(self, lst, mode="set"):
+    def Libpath(self, lst, mode="append"):
         return self.__append__("libpath", mode, lst)
 
-    def Lib(self, lst, mode="set"):
+    def Lib(self, lst, mode="append"):
         return self.__append__("lib", mode, lst)
 
-    def Linkflags(self, lst, mode="set"):
+    def Linkflags(self, lst, mode="append"):
         return self.__append__("linkflags", mode, lst)
 
-    def Cxxflags(self, lst, mode="set"):
+    def Cxxflags(self, lst, mode="append"):
         return self.__append__("cxxflags", mode, lst)
 
-    def Cflags(self, lst, mode="set"):
+    def Cflags(self, lst, mode="append"):
         return self.__append__("cflags", mode, lst)
 
-    def Frameworkpath(self, lst, mode="set"):
+    def Frameworkpath(self, lst, mode="append"):
         return self.__append__("frameworkpath", mode, lst)
   
-    def Framework(self, lst, mode="set"):
+    def Framework(self, lst, mode="append"):
         return self.__append__("framework", mode, lst)
 
     def Subtarget(self, key):

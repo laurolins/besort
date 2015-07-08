@@ -7,11 +7,12 @@ base = Target() \
 /usr/local/include 
 /usr/include 
 ''')) \
-    .Libpath(parse(". /usr/local/lib /usr/lib"))                         \
+    .Libpath(parse(". /usr/local/lib /usr/lib"))                                           \
     .Cxxflags(parse("-O3 -std=c++11"))                                                     \
     .Cflags(parse("-O3 -std=c11"))                                                         \
     .Subtarget("Darwin")                                                                   \
-        .Cxxflags(parse("-mmacosx-version-min=10.8.1 -stdlib=libc++"))                     \
+        .Cxxflags(parse("-stdlib=libc++"))                                                 \
+        .Linkflags(parse("-stdlib=libc++"))                                                \
         .Frameworkpath(parse("/System/Library/Frameworks"))                                \
         .Pop()                                                                             \
     .Subtarget("Linux")                                                                    \
@@ -26,6 +27,7 @@ def objTarget(name):
     return Target(base, name).Source([name]).Kind("object")
 
 sources = parse('''
+thread_pool.cc
 ''')
 
 # polycover_unittest.cc
@@ -42,8 +44,7 @@ besort = Target(base, "besort") \
     .Source( parse("besort.cc"))   \
     .Lib(parse("m"))     \
     .Subtarget("Darwin")                                          \
-        .Lib(parse(""))     \
-        .Framework(parse(""))         \
+        .Linkflags(parse("-stdlib=libc++"))         \
         .Pop()                        \
     .Subtarget("Linux")               \
         .Lib(parse(""))         \
@@ -77,6 +78,7 @@ def build(bld):
                 source        = target.Subtarget(OS).GetValue("source"),
                 includes      = target.Subtarget(OS).GetValue("includes"),
                 cxxflags      = target.Subtarget(OS).GetValue("cxxflags"),
+                linkflags     = target.Subtarget(OS).GetValue("linkflags"),
                 libpath       = target.Subtarget(OS).GetValue("libpath"),
                 lib           = target.Subtarget(OS).GetValue("lib"),
                 frameworkpath = target.Subtarget(OS).GetValue("frameworkpath"),
@@ -91,6 +93,7 @@ def build(bld):
                 source        = target.Subtarget(OS).GetValue("source"),
                 includes      = target.Subtarget(OS).GetValue("includes"),
                 cxxflags      = target.Subtarget(OS).GetValue("cxxflags"),
+                linkflags     = target.Subtarget(OS).GetValue("linkflags"),
                 libpath       = target.Subtarget(OS).GetValue("libpath"),
                 lib           = target.Subtarget(OS).GetValue("lib"),
                 frameworkpath = target.Subtarget(OS).GetValue("frameworkpath"),
