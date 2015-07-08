@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		ED13EF471B405B1E001FD291 /* besort.cc in Sources */ = {isa = PBXBuildFile; fileRef = ED13EF461B405B1E001FD291 /* besort.cc */; };
+		ED79148D1B422FF700D4D637 /* thread_pool.cc in Sources */ = {isa = PBXBuildFile; fileRef = ED79148C1B422FF700D4D637 /* thread_pool.cc */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -23,8 +24,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		ED0A26C41B344EF000EBE708 /* mlb */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = mlb; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED0A26C41B344EF000EBE708 /* besort */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = besort; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED13EF461B405B1E001FD291 /* besort.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = besort.cc; sourceTree = "<group>"; };
+		ED79148B1B422FF700D4D637 /* thread_pool.hh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = thread_pool.hh; sourceTree = "<group>"; };
+		ED79148C1B422FF700D4D637 /* thread_pool.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = thread_pool.cc; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -49,7 +52,7 @@
 		ED0A26C51B344EF000EBE708 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				ED0A26C41B344EF000EBE708 /* mlb */,
+				ED0A26C41B344EF000EBE708 /* besort */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -57,6 +60,8 @@
 		ED0A26C61B344EF000EBE708 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				ED79148B1B422FF700D4D637 /* thread_pool.hh */,
+				ED79148C1B422FF700D4D637 /* thread_pool.cc */,
 				ED13EF461B405B1E001FD291 /* besort.cc */,
 			);
 			name = src;
@@ -80,7 +85,7 @@
 			);
 			name = besort;
 			productName = mlb;
-			productReference = ED0A26C41B344EF000EBE708 /* mlb */;
+			productReference = ED0A26C41B344EF000EBE708 /* besort */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -120,6 +125,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ED13EF471B405B1E001FD291 /* besort.cc in Sources */,
+				ED79148D1B422FF700D4D637 /* thread_pool.cc in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

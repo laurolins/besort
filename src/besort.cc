@@ -6,6 +6,8 @@
 
 #include "tclap/CmdLine.h"
 
+#include "thread_pool.hh"
+
 //-------------------------------------------------------------------------
 //
 //
@@ -86,6 +88,25 @@ struct Options {
         "string"                 // type description
     };
 
+    TCLAP::ValueArg<int> threads {
+        "t",                     // flag
+        "threads",               // name
+        "output file name",      // description
+        false,                   // required
+        4,                       // value
+        "number"                 // type description
+    };
+
+    TCLAP::ValueArg<int> multiway_merge {
+        "m",                     // flag
+        "mulit-way-merge",               // name
+        "multi way merge parameter (default == 2)",      // description
+        false,                   // required
+        2,                       // value
+        "number"                 // type description
+    };
+
+
 };
 
 //------------------------------------------------------------------------------
@@ -101,10 +122,10 @@ Options::Options(std::vector<std::string>& args)
     cmd_line.add(buffer_size);
     cmd_line.add(input);
     cmd_line.add(output);
+    cmd_line.add(threads);
+    cmd_line.add(multiway_merge);
     cmd_line.parse(args);
 }
-
-
 
 //------------------------------------------------------------------------------
 // Forward Declarations
@@ -146,6 +167,211 @@ public:
 };
 
 //------------------------------------------------------------------------------
+// BESort
+//------------------------------------------------------------------------------
+
+/*! \brief Binary External Sort
+ */
+struct BESort {
+public:    
+    BESort(const std::string& input_filename,
+            const std::string& output_filename,
+            FileOffset         header_offset,
+            RecordSize         record_size,
+            RecordSize         key_size,
+            RecordOffset       key_offset,
+            BufferSize         buffer_size,
+            int                num_threads,
+            int                multiway_merge);
+private:
+    
+    void _run();
+    
+public:
+
+    struct {
+        std::string   input_filename;
+        std::string   output_filename;
+        FileOffset    header_offset;
+        RecordSize    record_size;
+        RecordSize    key_size;
+        RecordOffset  key_offset;
+        BufferSize    buffer_size;
+        int           num_threads;
+        int           multiway_merge;
+    } input;
+
+    struct {
+        FileSize file_size;
+        RecordCount num_records;
+        RecordCount records_per_chunk;
+        ChunkCount  num_chunks;
+    } computed;
+    
+    std::vector<std::unique_ptr<Chunk>> chunks;
+};
+
+//------------------------------------------------------------------------------
+// Record Iterator
+//------------------------------------------------------------------------------
+
+using RecordDiffType = int64_t;
+
+struct Record {
+    Record() = default;
+    
+    Record(const Record& other);
+    Record& operator=(const Record &other);
+    
+    uint64_t key() const; // if KEY_SIZE <= 8 bytes key() works
+    
+    bool operator<(const Record& other) const;
+    bool operator>(const Record& other) const;
+    bool operator==(const Record& other) const;
+};
+
+//------------------------------------------------------------------------------
+// Record Iterator
+//------------------------------------------------------------------------------
+
+struct RecordIterator:
+public std::iterator<std::random_access_iterator_tag, Record>
+{
+public:
+    using type              = std::iterator<std::random_access_iterator_tag, Record>;
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type        = type::value_type;
+    using difference_type   = type::difference_type;
+    using reference         = type::reference;
+    using pointer           = type::pointer;
+    
+    RecordIterator() = default;
+    
+    inline RecordIterator(const RecordIterator& r);
+    inline RecordIterator(pointer p);
+    inline RecordIterator& operator=(const RecordIterator& r);
+    inline RecordIterator& operator++();  // PREFIX
+    inline RecordIterator& operator--();  // PREFIX
+    inline RecordIterator operator++(int);  // POSTFIX
+
+    RecordIterator operator--(int);  // POSTFIX
+    RecordIterator operator+(const difference_type& n) const;
+    RecordIterator& operator+=(const difference_type& n);
+    
+    RecordIterator operator-(const difference_type& n) const;
+    RecordIterator& operator-=(const difference_type& n);
+
+    bool operator==(const RecordIterator& other) const;
+
+    reference operator*() const;
+    pointer operator->() const;
+    reference operator[](const difference_type& n) const;
+
+protected:
+    Record* ptr { nullptr };
+};
+
+
+//------------------------------------------------------------------------------
+// LoadChunkSortAndSave
+//------------------------------------------------------------------------------
+
+struct LoadChunkSortAndSave {
+public:
+    LoadChunkSortAndSave(Chunk &chunk);
+    void run();
+public:
+    Chunk *chunk_p { nullptr };
+    std::vector<char> buffer;
+};
+
+
+//------------------------------------------------------------------------------
+// Queue
+//------------------------------------------------------------------------------
+
+struct Queue {
+public:
+
+    Queue(Chunk* chunk, RecordCount buffer_record_capacity);
+
+    const Record* front() const;
+    
+    Record* front();
+
+    bool operator<(const Queue& other) const;
+
+    Record* next();
+    
+public:
+    std::vector<char> buffer;
+    std::vector<char> next_result;
+    Chunk*            chunk;
+    RecordCount       buffer_record_capacity;
+    RecordCount       remaining;
+    std::ifstream     is;
+    RecordIterator    it;
+    RecordIterator    it_end;
+};
+
+
+//------------------------------------------------------------------------------
+// MultiWayMerge
+//------------------------------------------------------------------------------
+
+struct MultiWayMerge {
+public:
+    MultiWayMerge() = default;
+    MultiWayMerge(BESort *parent, Index index, const std::vector<Chunk*> &chunks, RecordCount buffer_record_capacity);
+    void run();
+    std::string filename() const;
+public:
+    BESort *parent { nullptr };
+    Index  index { 0 };
+    std::vector<std::unique_ptr<Queue>> queues;
+    RecordCount buffer_record_capacity;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//------------------------------------------------------------------------------
 // Chunk Impl.
 //------------------------------------------------------------------------------
 
@@ -168,134 +394,10 @@ std::string Chunk::filename() const {
     return ss.str();
 }
 
-//------------------------------------------------------------------------------
-// BESort
-//------------------------------------------------------------------------------
-
-/*! \brief Binary External Sort
- */
-struct BESort {
-public:    
-    BESort(const std::string& input_filename,
-            const std::string& output_filename,
-            FileOffset         header_offset,
-            RecordSize         record_size,
-            RecordSize         key_size,
-            RecordOffset       key_offset,
-            BufferSize         buffer_size);
-public:    
-
-    struct {
-        std::string   input_filename;
-        std::string   output_filename;
-        FileOffset    header_offset;
-        RecordSize    record_size;
-        RecordSize    key_size;
-        RecordOffset  key_offset;
-        BufferSize    buffer_size;
-    } input;
-
-    struct {
-        FileSize file_size;
-        RecordCount num_records;
-        RecordCount records_per_chunk;
-        ChunkCount  num_chunks;
-    } computed;
-    
-    std::vector<std::unique_ptr<Chunk>> chunks;
-};
 
 //------------------------------------------------------------------------------
-// BESort Impl.
+// Record Impl.
 //------------------------------------------------------------------------------
-
-BESort::BESort(
-               const std::string& input_filename,
-               const std::string& output_filename,
-               FileOffset   header_offset,
-               RecordSize   record_size,
-               RecordSize   key_size,
-               RecordOffset key_offset,
-               BufferSize buffer_size)
-{
-    // input fields
-    input.input_filename = input_filename;
-    input.output_filename = output_filename;
-    input.header_offset = header_offset;
-    input.record_size = record_size;
-    input.key_size    = key_size;
-    input.key_offset = key_offset;
-    input.buffer_size = buffer_size;
-    
-    // computed fields
-    
-    // go to header
-    std::ifstream is(input.input_filename);
-    if (!is)
-        throw std::runtime_error("couldn't open file");
-
-    // file size
-    is.seekg(0, is.end);
-    computed.file_size = is.tellg();
-    
-    // number of records (integer division here)
-    computed.num_records = (computed.file_size - input.header_offset)/input.record_size;
-    
-    // chunks will be of size
-    computed.records_per_chunk = input.buffer_size / (std::uint64_t) input.record_size;
-
-    // number of chunks
-    computed.num_chunks = computed.num_records / computed.records_per_chunk;
-
-    // last chunk might need
-    computed.num_chunks += (computed.num_records & computed.records_per_chunk) ? 1 : 0;
-    
-
-    // prepare chunks
-    auto remaining = computed.num_records;
-    auto offset    = input.header_offset;
-
-    chunks.reserve(computed.num_chunks);
-    
-    
-    // set global variables
-    KEY_OFFSET  = input.key_offset;
-    KEY_SIZE    = input.key_size;
-    RECORD_SIZE = input.record_size;
-    
-    
-    auto index = 0;
-    while (remaining > 0) {
-        auto r = (remaining < computed.records_per_chunk) ? remaining : computed.records_per_chunk;
-        auto s = (r * input.record_size);
-        auto e = offset + s;
-        chunks.push_back(std::unique_ptr<Chunk>(new Chunk(this, index++, offset, e, r)));
-        offset = e;
-        remaining -= r;
-    }
-    
-}
-
-
-
-
-
-
-//------------------------------------------------------------------------------
-// Record Iterator
-//------------------------------------------------------------------------------
-
-using RecordDiffType = int64_t;
-
-struct Record {
-    Record() = default;
-    
-    Record(const Record& other);
-    Record& operator=(const Record &other);
-    
-    bool operator<(const Record& other) const;
-    bool operator==(const Record& other) const;
-};
 
 Record::Record(const Record& other) {
     auto pa = (char*) this;
@@ -312,6 +414,18 @@ Record& Record::operator=(const Record &other) {
     return *this;
 }
 
+uint64_t Record::key() const {
+    if (KEY_SIZE <= 8) {
+        uint64_t a = 0;
+        auto pa = (char*) this   + KEY_OFFSET;
+        std::copy(pa, pa + KEY_SIZE, (char*) &a);
+        return a;
+    }
+    else {
+        throw std::runtime_error("not implemented yet");
+    }
+}
+
 bool Record::operator<(const Record& other) const {
     if (KEY_SIZE <= 8) {
         uint64_t a = 0;
@@ -321,6 +435,21 @@ bool Record::operator<(const Record& other) const {
         std::copy(pa, pa + KEY_SIZE, (char*) &a);
         std::copy(pb, pb + KEY_SIZE, (char*) &b);
         return a < b;
+    }
+    else {
+        throw std::runtime_error("not implemented yet");
+    }
+}
+
+bool Record::operator>(const Record& other) const {
+    if (KEY_SIZE <= 8) {
+        uint64_t a = 0;
+        uint64_t b = 0;
+        auto pa = (char*) this   + KEY_OFFSET;
+        auto pb = (char*) &other + KEY_OFFSET;
+        std::copy(pa, pa + KEY_SIZE, (char*) &a);
+        std::copy(pb, pb + KEY_SIZE, (char*) &b);
+        return a > b;
     }
     else {
         throw std::runtime_error("not implemented yet");
@@ -351,91 +480,67 @@ static inline Record* rp_add(const Record* p, RecordDiffType n) {
 // Record Iterator
 //------------------------------------------------------------------------------
 
-struct RecordIterator:
-public std::iterator<std::random_access_iterator_tag, Record>
+inline RecordIterator::RecordIterator(const RecordIterator& r) : ptr(&(*r))
+{}
+
+inline RecordIterator::RecordIterator(pointer p) : ptr(p) {}
+
+inline RecordIterator& RecordIterator::operator=(const RecordIterator& r)
+{ ptr = &(*r); return *this; }
+
+inline RecordIterator& RecordIterator::operator++()  // PREFIX
+{ ptr = rp_add(ptr,1); return *this; }
+
+inline RecordIterator& RecordIterator::operator--()  // PREFIX
+{ ptr = rp_add(ptr,-1); return *this; }
+
+inline RecordIterator RecordIterator::operator++(int)  // POSTFIX
 {
-public:
-    using type              = std::iterator<std::random_access_iterator_tag, Record>;
-    using iterator_category = std::random_access_iterator_tag;
-    using value_type        = type::value_type;
-    using difference_type   = type::difference_type;
-    using reference         = type::reference;
-    using pointer           = type::pointer;
-    
-    RecordIterator() {};
-    
-    inline RecordIterator(const RecordIterator& r) : ptr(&(*r))
-    {}
-    
-    inline RecordIterator(pointer p) : ptr(p) {}
-    
-    inline RecordIterator& operator=(const RecordIterator& r)
-    { ptr = &(*r); return *this; }
-    
-    inline RecordIterator& operator++()  // PREFIX
-    { ptr = rp_add(ptr,1); return *this; }
+    auto result = *this;
+    ptr = rp_add(ptr,1);
+    return result;
+}
 
-    inline RecordIterator& operator--()  // PREFIX
-    { ptr = rp_add(ptr,-1); return *this; }
+RecordIterator RecordIterator::operator--(int)  // POSTFIX
+{
+    auto result = *this;
+    ptr = rp_add(ptr,-1);
+    return result;
+}
 
-    inline RecordIterator operator++(int)  // POSTFIX
-    {
-        auto result = *this;
-        ptr = rp_add(ptr,1);
-        return result;
-    }
+RecordIterator RecordIterator::operator+(const difference_type& n) const
+{ return RecordIterator(rp_add(ptr,n)); }
 
-    RecordIterator operator--(int)  // POSTFIX
-    {
-        auto result = *this;
-        ptr = rp_add(ptr,-1);
-        return result;
-    }
-    
-    RecordIterator operator+(const difference_type& n) const
-    { return RecordIterator(rp_add(ptr,n)); }
-    
-    RecordIterator& operator+=(const difference_type& n)
-    { ptr = (Record*) ((char*) ptr + n * RECORD_SIZE); return *this; }
-    
-    RecordIterator operator-(const difference_type& n) const
-    { return RecordIterator(pointer(rp_add(ptr,-n))); }
-    
-    RecordIterator& operator-=(const difference_type& n) {
-        ptr = rp_add(ptr,-n); return *this;
-    }
+RecordIterator& RecordIterator::operator+=(const difference_type& n)
+{ ptr = (Record*) ((char*) ptr + n * RECORD_SIZE); return *this; }
 
-    bool operator==(const RecordIterator& other) const {
-        return ptr == other.ptr;;
-    }
+RecordIterator RecordIterator::operator-(const difference_type& n) const
+{ return RecordIterator(pointer(rp_add(ptr,-n))); }
 
-    reference operator*() const { return *ptr; }
-    
-    pointer operator->() const { return ptr; }
-    
-    reference operator[](const difference_type& n) const { return *(rp_add(ptr,n)); }
+RecordIterator& RecordIterator::operator-=(const difference_type& n) {
+    ptr = rp_add(ptr,-n); return *this;
+}
 
-protected:
-    Record* ptr;
-};
+bool RecordIterator::operator==(const RecordIterator& other) const {
+    return ptr == other.ptr;;
+}
 
+auto RecordIterator::operator*() const -> reference
+{ return *ptr; }
+
+auto RecordIterator::operator->() const -> pointer
+{ return ptr; }
+
+auto RecordIterator::operator[](const difference_type& n) const -> reference {
+    return *(rp_add(ptr,n));
+}
 
 //------------------------------------------------------------------------------
-// LoadChunkSortAndSave
+// LoadChunkSortAndSave Impl.
 //------------------------------------------------------------------------------
-
-struct LoadChunkSortAndSave {
-public:
-    LoadChunkSortAndSave(Chunk &chunk);
-    void run();
-public:
-    Chunk *chunk_p { nullptr };
-    std::vector<char> buffer;
-};
-
 
 LoadChunkSortAndSave::LoadChunkSortAndSave(Chunk &chunk):
-    chunk_p(&chunk)
+chunk_p(&chunk)
 {}
 
 void LoadChunkSortAndSave::run() {
@@ -465,32 +570,6 @@ void LoadChunkSortAndSave::run() {
     of.write(&buffer[0],buffer.size());
 }
 
-//------------------------------------------------------------------------------
-// Queue
-//------------------------------------------------------------------------------
-
-struct Queue {
-public:
-
-    Queue(Chunk* chunk, RecordCount buffer_record_capacity);
-
-    const Record* front() const;
-    
-    Record* front();
-
-    bool operator<(const Queue& other) const;
-
-    Record* next();
-    
-public:
-    std::vector<char> buffer;
-    Chunk*            chunk;
-    RecordCount       buffer_record_capacity;
-    RecordCount       remaining;
-    std::ifstream     is;
-    RecordIterator    it;
-    RecordIterator    it_end;
-};
 
 //------------------------------------------------------------------------------
 // Queue Impl.
@@ -504,10 +583,13 @@ Queue::Queue(Chunk* chunk, BufferSize buffer_record_capacity):
     remaining = chunk->num_records;
     
     auto batch = remaining > buffer_record_capacity ? buffer_record_capacity : remaining;
+    auto batch_bytes = batch * chunk->parent->input.record_size;
     buffer.resize(batch);
     
+    next_result.resize(chunk->parent->input.record_size);
+    
     auto p = &buffer[0];
-    is.read(p, batch * chunk->parent->input.record_size);
+    is.read(p, batch_bytes);
     
     it     = RecordIterator((Record*) &buffer[0]);
     it_end = it + batch;
@@ -528,15 +610,18 @@ Record* Queue::front() {
 }
 
 bool Queue::operator<(const Queue& other) const{
-    return front() > other.front();
+    auto &a = *front();
+    auto &b = *other.front();
+    return a > b; // top priority is reversed on push_heap pop_heap etc
 }
 
 Record* Queue::next() {
     
     if (remaining == 0)
         return nullptr;
-        
-    auto result = front();
+    
+    Record* result = (Record*) &next_result[0];
+    *result = *front();
     
     ++it;
     --remaining;
@@ -544,10 +629,11 @@ Record* Queue::next() {
     // advance
     if (it == it_end && remaining > 0) {
         auto batch = remaining > buffer_record_capacity ? buffer_record_capacity : remaining;
-        buffer.resize(batch);
+        auto batch_bytes = batch * chunk->parent->input.record_size;
+        buffer.resize(batch_bytes);
         
         auto p = &buffer[0];
-        is.read(p, batch * chunk->parent->input.record_size);
+        is.read(p, batch_bytes);
         
         it     = RecordIterator((Record*) &buffer[0]);
         it_end = it + batch;
@@ -557,26 +643,24 @@ Record* Queue::next() {
 }
 
 
-//------------------------------------------------------------------------------
-// MultiWayMerge
-//------------------------------------------------------------------------------
 
-struct MultiWayMerge {
-public:
-    MultiWayMerge(BESort *parent, Index index, const std::vector<Chunk*> &chunks, RecordCount buffer_record_capacity);
-    void run();
-    std::string filename() const;
-public:
-    BESort *parent { nullptr };
-    Index  index;
-    std::vector<std::unique_ptr<Queue>> queues;
-    RecordCount buffer_record_capacity;
-};
 
+
+
+
+
+
+
+
+
+
+//------------------------------------------------------------------------------
+// MultiWayMerge Impl.
+//------------------------------------------------------------------------------
 
 std::string MultiWayMerge::filename() const {
     std::stringstream ss;
-    ss << "__besort_mway_" << index;
+    ss << "/tmp/__besort_mway_" << index;
     return ss.str();
 }
 
@@ -600,6 +684,12 @@ buffer_record_capacity(buffer_record_capacity)
 }
 
 void MultiWayMerge::run() {
+    
+    auto compare_heaps = [](const std::unique_ptr<Queue>& a, const std::unique_ptr<Queue>& b) {
+        auto &qa = *a.get();
+        auto &qb = *b.get();
+        return qa < qb;
+    };
 
     std::ofstream os(filename());
     while (queues.size()) {
@@ -609,46 +699,163 @@ void MultiWayMerge::run() {
         // empty
         auto next_front = queues.front()->front();
         if (!next_front) {
-            std::pop_heap(queues.begin(),queues.end(),[](const std::unique_ptr<Queue>& a, const std::unique_ptr<Queue>& b) {
-                auto &qa = *a.get();
-                auto &qb = *b.get();
-                return qa < qb;
-            });
+            std::pop_heap(queues.begin(),queues.end(),compare_heaps);
             queues.pop_back();
         }
         else if (queues.size() > 1) {
             bool swap_queues = false;
             // children
-//
-            auto &q_root  = *queues.begin()->get();
-//            auto &q_child1 = *queues[1].get();
-//            if (q_child1 < q_root) {
-//                swap_queues = true;
-//            }
-//            else if (queues.size() > 2) {
-//                auto &q_child2 = *queues[2].get();
-//                if (q_child2 < q_root) {
-//                    swap_queues = true;
-//                }
-//            }
+
+
+            // std::cerr << "comparing q[0]=" << queues[0].get()->front()->key() << "  q[1]=" << queues[1].get()->front()->key() << std::endl;
+            
+            // auto &qroot = *queues.begin()->get();
+            if (compare_heaps(queues[0], queues[1])) {
+                swap_queues = true;
+            }
+            else if (queues.size() > 2 && compare_heaps(queues[0], queues[2])) {
+                swap_queues = true;
+            }
+
+            
             if (swap_queues) {
-                std::pop_heap(queues.begin(),queues.end(),[](const std::unique_ptr<Queue>& a, const std::unique_ptr<Queue>& b) {
-                    auto &qa = *a.get();
-                    auto &qb = *b.get();
-                    return qa < qb;
-                });
-                std::push_heap(queues.begin(),queues.end(),[](const std::unique_ptr<Queue>& a, const std::unique_ptr<Queue>& b) {
-                    auto &qa = *a.get();
-                    auto &qb = *b.get();
-                    return qa < qb;
-                });
+                std::pop_heap(queues.begin(),queues.end(),compare_heaps);
+                std::push_heap(queues.begin(),queues.end(),compare_heaps);
             }
         }
-        
-        
-        
     }
+}
 
+//------------------------------------------------------------------------------
+// BESort Impl.
+//------------------------------------------------------------------------------
+
+BESort::BESort(
+               const std::string& input_filename,
+               const std::string& output_filename,
+               FileOffset   header_offset,
+               RecordSize   record_size,
+               RecordSize   key_size,
+               RecordOffset key_offset,
+               BufferSize buffer_size,
+               int        num_threads,
+               int        multiway_merge)
+{
+    // input fields
+    input.input_filename  = input_filename;
+    input.output_filename = output_filename;
+    input.header_offset   = header_offset;
+    input.record_size     = record_size;
+    input.key_size        = key_size;
+    input.key_offset      = key_offset;
+    input.buffer_size     = buffer_size;
+    input.num_threads     = num_threads;
+    input.multiway_merge  = multiway_merge;
+    
+    // computed fields
+    
+    // go to header
+    std::ifstream is(input.input_filename);
+    if (!is)
+        throw std::runtime_error("couldn't open file");
+    
+    // file size
+    is.seekg(0, is.end);
+    computed.file_size = is.tellg();
+    
+    // number of records (integer division here)
+    computed.num_records = (computed.file_size - input.header_offset)/input.record_size;
+    
+    // chunks will be of size
+    computed.records_per_chunk = input.buffer_size / (std::uint64_t) input.record_size;
+    
+    // number of chunks
+    computed.num_chunks = computed.num_records / computed.records_per_chunk;
+    
+    // last chunk might need
+    computed.num_chunks += (computed.num_records & computed.records_per_chunk) ? 1 : 0;
+    
+    
+    // prepare chunks
+    auto remaining = computed.num_records;
+    auto offset    = input.header_offset;
+    
+    chunks.reserve(computed.num_chunks);
+    
+    
+    // set global variables
+    KEY_OFFSET  = input.key_offset;
+    KEY_SIZE    = input.key_size;
+    RECORD_SIZE = input.record_size;
+    
+    
+    auto index = 0;
+    while (remaining > 0) {
+        auto r = (remaining < computed.records_per_chunk) ? remaining : computed.records_per_chunk;
+        auto s = (r * input.record_size);
+        auto e = offset + s;
+        chunks.push_back(std::unique_ptr<Chunk>(new Chunk(this, index++, offset, e, r)));
+        offset = e;
+        remaining -= r;
+    }
+    
+    
+    _run();
+}
+
+
+void BESort::_run() {
+    
+    //
+    // pipeline
+    //
+    // let worker thread solve LoadChunkSortAndSave
+    //
+    // k-way sort.
+    //
+    
+    
+    thread_pool::ThreadPool pool(input.num_threads);
+    
+    auto chunks_to_sort = chunks.size();
+    
+    std::mutex sorted_chunks_mutex;
+    std::vector<Chunk*> sorted_chunks;
+    
+    auto &besort = *this;
+    
+    for (auto &it: chunks) {
+        auto chunk = it.get();
+        auto sort_chunk = [chunk, &besort, &sorted_chunks_mutex, &sorted_chunks, &chunks_to_sort, &pool]() {
+            LoadChunkSortAndSave task(*chunk);
+            task.run();
+            {
+                std::lock_guard<std::mutex> lock(sorted_chunks_mutex);
+                sorted_chunks.push_back(chunk);
+                --chunks_to_sort;
+                if (sorted_chunks.size() == besort.input.multiway_merge || chunks_to_sort == 0) {
+                    // start multi-way sorting with sorted chunks
+                    
+                    
+                    auto merge = [sorted_chunks, &besort]() {
+                        auto queue_records = besort.input.buffer_size/(besort.input.record_size * besort.input.multiway_merge);
+                        if (queue_records == 0)
+                            queue_records = 1;
+                        
+                        MultiWayMerge multiway_merge { &besort, sorted_chunks[0]->index, sorted_chunks, queue_records };
+                        multiway_merge.run();
+                    };
+                    pool.enqueue(merge);
+                    sorted_chunks.clear();
+                }
+            }
+        };
+        pool.enqueue(sort_chunk);
+    }
+    
+    while (chunks_to_sort > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{200});
+    }
 }
 
 
@@ -715,17 +922,10 @@ int main(int argc, char** argv) {
         options.record_size.getValue(),
         options.key_size.getValue(),
         options.key_offset.getValue(),
-        parse_size(options.buffer_size.getValue())
+        parse_size(options.buffer_size.getValue()),
+        options.threads.getValue(),
+        options.multiway_merge.getValue()
     };
-    
-    //
-    //
-    //
-    for (auto &it: besort.chunks) {
-        LoadChunkSortAndSave task(*it.get());
-        task.run();
-    }
-    
     
 }
 

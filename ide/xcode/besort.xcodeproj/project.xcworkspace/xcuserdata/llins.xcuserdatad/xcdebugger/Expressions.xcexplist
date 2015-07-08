@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VariablesViewState
+   version = "1.0">
+   <ContextStates>
+      <ContextState
+         contextName = "MultiWayMerge::MultiWayMerge(BESort*, unsigned long long, std::__1::vector&lt;Chunk*, std::__1::allocator&lt;Chunk*&gt; &gt; const&amp;, unsigned long long):besort.cc">
+      </ContextState>
+      <ContextState
+         contextName = "BESort::_run():besort.cc">
+      </ContextState>
+      <ContextState
+         contextName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::operator()() const:besort.cc">
+      </ContextState>
+      <ContextState
+         contextName = "Queue::operator&lt;(Queue const&amp;) const:besort.cc">
+         <PersistentStrings>
+            <PersistentString
+               value = "a.key()">
+            </PersistentString>
+            <PersistentString
+               value = "b.key()">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "MultiWayMerge::run():besort.cc">
+      </ContextState>
+   </ContextStates>
+</VariablesViewState>

@@ -118,32 +118,186 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../../src/besort.cc"
-            timestampString = "457211214.413089"
+            timestampString = "458023569.190905"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "301"
-            endingLineNumber = "301"
-            landmarkName = "Record::Record(const Record&amp; other)"
+            startingLineNumber = "752"
+            endingLineNumber = "752"
+            landmarkName = "BESort::BESort( const std::string&amp; input_filename, const std::string&amp; output_filename, FileOffset header_offset, RecordSize record_size, RecordSize key_size, RecordOffset key_offset, BufferSize buffer_size, int num_threads, int multiway_merge)"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../../src/besort.cc"
-            timestampString = "457211290.249378"
+            timestampString = "458023569.190905"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "436"
-            endingLineNumber = "436"
-            landmarkName = "LoadChunkSortAndSave::LoadChunkSortAndSave(Chunk &amp;chunk)"
+            startingLineNumber = "834"
+            endingLineNumber = "834"
+            landmarkName = "BESort::_run()"
+            landmarkType = "5">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../src/besort.cc"
+            timestampString = "458023569.190905"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "840"
+            endingLineNumber = "840"
+            landmarkName = "BESort::_run()"
+            landmarkType = "5">
+            <Locations>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954333"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "725">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::&apos;lambda&apos;()(&apos;lambda&apos;() const&amp;)"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954448"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "20">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::~&apos;lambda&apos;()()"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954564"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "16">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::~&apos;lambda&apos;()()"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954655"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "16">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::&apos;lambda&apos;()(&apos;lambda&apos;() const&amp;)"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954737"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "20">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::operator()() const"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954828"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "810"
+                  endingLineNumber = "810"
+                  offsetFromSymbolStart = "15">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::&apos;lambda&apos;()(&apos;lambda&apos;()&amp;&amp;)"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.954936"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "20">
+               </Location>
+               <Location
+                  shouldBeEnabled = "No"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "BESort::_run()::$_4::operator()() const::&apos;lambda&apos;()::&apos;lambda&apos;()(&apos;lambda&apos;()&amp;&amp;)"
+                  moduleName = "besort"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/llins/projects/besort/src/besort.cc"
+                  timestampString = "458018592.955013"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "809"
+                  endingLineNumber = "809"
+                  offsetFromSymbolStart = "48">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../src/besort.cc"
+            timestampString = "458023569.792968"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "710"
+            endingLineNumber = "710"
+            landmarkName = "MultiWayMerge::run()"
             landmarkType = "5">
          </BreakpointContent>
       </BreakpointProxy>
