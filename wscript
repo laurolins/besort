@@ -1,21 +1,31 @@
 #! /usr/bin/env python
 # encoding: utf-8
 
-def options(opt):
-    opt.load('compiler_cxx')
-    opt.load('compiler_c')
-
+def options(ctx):
+    # print(ctx.__class__.__name__)
+    ctx.load('compiler_cxx')
+    ctx.load('compiler_c')
+    ctx.add_option('--debug', action='store_true', default=False, help='use debug directives')
 
 #    ctx.add_option('--tcmalloc', action='store_true', default=False,
 #                help='execute the program after it is built')
 
-def configure(cnf):
-    cnf.load('compiler_cxx')
-    cnf.load('compiler_c')
-    cnf.check(features='cxx cxxprogram',msg='cxx and cxxprogram') 
+def configure(ctx):
+    # print(ctx.__class__.__name__)
+    ctx.load('compiler_cxx')
+    ctx.load('compiler_c')
+    ctx.check(features='cxx cxxprogram',msg='cxx and cxxprogram')
+    # print('...debug mode? %r' % ctx.options.debug)
+    ctx.recurse('src')        # programs
 
-def build(bld):
-    bld.recurse('src')        # programs
+# def pre(ctx):
+#     if ctx.options.debug:
+#         OS = open("/tmp/platform","r").readlines()[0].strip()
+        
+def build(ctx):
+    # print(ctx.__class__.__name__)
+    # print('...debug mode? %r' % ctx.options.debug)
+    ctx.recurse('src')        # programs
 
 
 
@@ -23,15 +33,10 @@ def build(bld):
 
 #     bld.recurse('tessellate') # libtessellate
 
-
-
-
     # conf.env.CFLAGS = ['-g']
     # conf.setenv('release')
     # conf.load('compiler_c')
     # conf.env.CFLAGS = ['-O2']
-
-
 
 #, lib=['m'], cflags=['-Wall'], defines=['var=foo'], uselib_store='M')
 

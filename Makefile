@@ -16,10 +16,16 @@ all:
 	./waf build
 	./waf install
 
+debug:
+	./waf distclean
+	./waf configure --debug --prefix=${HOME}/local-dev
+	./waf -v build
+	./waf install
+
 verbose:
 	./waf distclean
 	./waf configure --prefix=${HOME}/local-dev
-	./waf -vvv build
+	./waf -v build
 	./waf install
 
 test:

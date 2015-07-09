@@ -205,6 +205,10 @@ private:
     void _run();
     
 public:
+    
+    
+    
+public:
 
     struct {
         std::string   input_filename;
@@ -350,12 +354,11 @@ public:
 struct MultiWayMerge {
 public:
     MultiWayMerge() = default;
-    MultiWayMerge(Chunk *chunk, RecordCount buffer_record_capacity);
+    MultiWayMerge(Chunk *chunk);
     void run();
 public:
     Chunk  *chunk;
     std::vector<std::unique_ptr<Queue>> queues;
-    RecordCount buffer_record_capacity;
 };
 
 
@@ -770,11 +773,17 @@ Record* Queue::next() {
 // MultiWayMerge Impl.
 //------------------------------------------------------------------------------
 
-MultiWayMerge::MultiWayMerge(Chunk* chunk, RecordCount buffer_record_capacity):
-chunk(chunk),
-buffer_record_capacity(buffer_record_capacity)
+MultiWayMerge::MultiWayMerge(Chunk* chunk):
+chunk(chunk)
 {
+
+    // record capacity of each queue is given by
+    auto &input = chunk->besort->input;
+    auto buffer_record_capacity = input.buffer_size/(input.record_size * input.multiway_merge);
+    if (buffer_record_capacity == 0)
+        buffer_record_capacity = 1;
     
+
     // initialize queues: one for each chunk
     for (auto c: chunk->children) {
         queues.push_back(std::unique_ptr<Queue>{ new Queue(c, buffer_record_capacity) });
@@ -788,6 +797,7 @@ buffer_record_capacity(buffer_record_capacity)
 }
 
 void MultiWayMerge::run() {
+    
     
     auto compare_heaps = [](const std::unique_ptr<Queue>& a, const std::unique_ptr<Queue>& b) {
         auto &qa = *a.get();
@@ -962,25 +972,32 @@ void BESort::_run() {
     std::function<void(Chunk*)> sort;
     sort = [&besort, &sort, &pool, &update_mutex, &chunks_to_sort](Chunk* chunk) {
         if (chunk->level == 0) {
+            {
+                std::lock_guard<std::mutex> guard(update_mutex);
+                std::cerr << "sorting leaf chunk: " << chunk->filename() << std::endl;
+            }
             LoadChunkSortAndSave task(*chunk);
             task.run();
-            std::lock_guard<std::mutex> guard(update_mutex);
-            --chunks_to_sort;
-            std::cerr << "finish sorting: " << chunk->filename() << std::endl;
-
-            auto parent_chunk = chunk->parent;
-            if (parent_chunk) {
-                bool process_parent_chunk = chunk->parent->aChildWasSorted();
-                if (process_parent_chunk) {
-                    pool.enqueue([parent_chunk, &sort]() { sort(parent_chunk); });
+            {
+                std::lock_guard<std::mutex> guard(update_mutex);
+                --chunks_to_sort;
+                std::cerr << "finished sorting: " << chunk->filename() << std::endl;
+                auto parent_chunk = chunk->parent;
+                if (parent_chunk) {
+                    bool process_parent_chunk = chunk->parent->aChildWasSorted();
+                    if (process_parent_chunk) {
+                        pool.enqueue([parent_chunk, &sort]() { sort(parent_chunk); });
+                    }
                 }
             }
         }
         else {
-            auto queue_records = besort.input.buffer_size/(besort.input.record_size * besort.input.multiway_merge);
-            if (queue_records == 0)
-                queue_records = 1;
-            MultiWayMerge multiway_merge { chunk, queue_records };
+            {
+                std::lock_guard<std::mutex> guard(update_mutex);
+                std::cerr << "merging sorted chunks: " << chunk->filename() << std::endl;
+            }
+
+            MultiWayMerge multiway_merge { chunk };
             multiway_merge.run();
             
             // delete tmp files of children chunks
@@ -991,7 +1008,7 @@ void BESort::_run() {
             {
                 std::lock_guard<std::mutex> guard(update_mutex);
                 --chunks_to_sort;
-                std::cerr << "finish sorting: " << chunk->filename() << std::endl;
+                std::cerr << "finished merging: " << chunk->filename() << std::endl;
 
                 auto parent_chunk = chunk->parent;
                 if (parent_chunk) {
