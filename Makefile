@@ -1,8 +1,8 @@
 nothing:
 
 waf:
-	wget http://ftp.waf.io/pub/release/waf-1.7.16
-	mv waf-1.7.16 waf
+	wget http://www.freehackers.org/~tnagy/release/waf-1.8.7
+	mv waf-1.8.7 waf
 	python waf --version
 	chmod +x waf
 
