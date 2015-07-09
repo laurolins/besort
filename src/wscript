@@ -6,7 +6,7 @@ def configure(ctx):
 
 def build(ctx):
 
-    optimize_or_debug_flag = ["-g"] if ctx.env.DEBUG == '1' else ["-O3"]
+    optimize_or_debug_flag = ["-g", "-O2"] if ctx.env.DEBUG == '1' else ["-O3"]
     # print optimize_or_debug_flag
 
     base = Target() \

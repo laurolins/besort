@@ -64,7 +64,7 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = " -i /Users/llins/papers/xraytopk/data/tweets_27M_sample_100k.nci -s 17 -f 9 -k 4 -h 75271881 -t 4 -b 10m -m 4 -o /tmp/tweets_27M_sample_100k_sorted.nci"
+            argument = " -i /Users/llins/papers/xraytopk/data/tweets_27M_sample_1M.nci -s 17 -f 9 -k 4 -h 75271881 -t 4 -b 10m -m 4 -o /tmp/tweets_27M_sample_1M_sorted.nci"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument

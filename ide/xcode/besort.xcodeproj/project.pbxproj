@@ -215,6 +215,7 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-I$(SRCROOT)/../../thirdparty",
+					"-O2",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -226,6 +227,7 @@
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-I$(SRCROOT)/../../thirdparty",
+					"-O3",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};

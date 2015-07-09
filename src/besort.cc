@@ -695,12 +695,16 @@ Queue::Queue(Chunk* chunk, BufferSize buffer_record_capacity):
     buffer_record_capacity(buffer_record_capacity),
     is(chunk->filename())
 {
-    remaining = chunk->num_records;
+//    std::cerr << "Queue(chunk): " << chunk->filename() << std::endl;
     
+    remaining = chunk->num_records;
+
+//    std::cerr << "Queue(remaining): " << remaining << std::endl;
+
     auto batch = remaining > buffer_record_capacity ? buffer_record_capacity : remaining;
     auto batch_bytes = batch * chunk->besort->input.record_size;
-    buffer.resize(batch);
-    
+    buffer.resize(batch_bytes);
+
     next_result.resize(chunk->besort->input.record_size);
     
     auto p = &buffer[0];
